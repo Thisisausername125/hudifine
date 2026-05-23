@@ -1,0 +1,9 @@
+{
+  "modmenu.nameTranslation.hudifine": "Hudifine",
+  "hudifine.editor.title": "Hud Script Editor",
+  "hudifine.editor.apply": "Apply Script",
+  "hudifine.editor.close": "Close",
+  "hudifine.editor.paste": "Paste Clipboard",
+  "hudifine.editor.clear": "Clear",
+  "hudifine.settings.title": "Widget Settings"
+}
