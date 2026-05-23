@@ -128,6 +128,53 @@ public final class HudifineProviderRegistry {
         }
     }
 
+    /**
+     * Returns a custom fallback HUDScript for a provider mod, if one was supplied
+     * through {@link HudifineProviderMeta#getFallbackHudScript()}.
+     */
+    public static synchronized String getFallbackHudScriptForMod(String ownerModId) {
+        if (ownerModId == null || ownerModId.isBlank()) {
+            return "";
+        }
+
+        String chosenScript = "";
+        String chosenProviderId = "";
+
+        for (RegisteredProvider registered : PROVIDERS.values()) {
+            if (!ownerModId.equals(registered.ownerModId())) {
+                continue;
+            }
+
+            HudifineDataProvider provider = registered.provider();
+            if (!(provider instanceof HudifineProviderMeta meta)) {
+                continue;
+            }
+
+            String script = safeText(meta.getFallbackHudScript()).trim();
+            if (script.isBlank()) {
+                continue;
+            }
+
+            if (chosenScript.isBlank()) {
+                chosenScript = script;
+                chosenProviderId = registered.id();
+                continue;
+            }
+
+            if (!chosenScript.equals(script)) {
+                LOGGER.warn(
+                    "Multiple Hudifine providers from mod '{}' supplied different fallback scripts. " +
+                        "Using script from provider '{}' and ignoring provider '{}'.",
+                    ownerModId,
+                    chosenProviderId,
+                    registered.id()
+                );
+            }
+        }
+
+        return chosenScript;
+    }
+
     private static boolean registerInternal(HudifineDataProvider provider, String ownerModId) {
         if (provider == null) {
             LOGGER.warn("Ignoring null Hudifine provider from '{}'.", ownerModId);

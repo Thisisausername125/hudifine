@@ -13,6 +13,7 @@
 - Public HUD extension API support for external mods via hudifine:hud entrypoint and registry integration.
 - Automatic installation of extension-provided HUD widgets.
 - Provider-only compatibility fallback that auto-generates visible HUD widgets when no hudifine:hud entrypoint is present.
+- Provider-only fallback style override via `HudifineProviderMeta#getFallbackHudScript()` for custom widget styling without a separate `hudifine:hud` entrypoint.
 - Persistent storage for extension widget ownership and dismissed extension keys.
 - New release changelog file.
 
@@ -29,6 +30,7 @@
 - Fixed context menu Settings eligibility for multi-select: Settings is disabled when selected widgets do not share the same script.
 - Fixed mixed-visibility edge case by disabling Hide/Unhide action when multi-selection contains mixed visibility states.
 - Fixed extension visibility issue where provider-only extension mods loaded data but produced no visible HUDs.
+- Fixed provider-only integration limitation where custom widget styling could not be supplied through metadata-driven fallback scripts.
 - Fixed rounded-rectangle translucency artifact where center region appeared darker from overlapping alpha fills.
 
 ### Rendering

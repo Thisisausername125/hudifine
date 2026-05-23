@@ -15,7 +15,7 @@ Hudifine includes a provider API so other mods can expose values to HUDScript th
 - Providers are discovered from the Fabric entrypoint key `hudifine:provider`
 - Registered values become script-readable by ID, for example `get(mymod.fps)`
 - Mods can also ship full HUD widgets via the `hudifine:hud` entrypoint
-- Provider-only extensions automatically receive a basic generated HUD panel for compatibility
+- Provider-only extensions automatically receive a generated HUD panel for compatibility and can override that fallback style via `HudifineProviderMeta#getFallbackHudScript()`
 
 Integration docs: [docs/mod-integration-guide.md](docs/mod-integration-guide.md)
 

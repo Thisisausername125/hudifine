@@ -1,0 +1,96 @@
+{
+  "formatVersion": "1.1",
+  "component": {
+    "group": "dev.hudifine",
+    "module": "hudifine-api",
+    "version": "1.0.1",
+    "attributes": {
+      "org.gradle.status": "release"
+    }
+  },
+  "createdBy": {
+    "gradle": {
+      "version": "9.4.1"
+    }
+  },
+  "variants": [
+    {
+      "name": "apiElements",
+      "attributes": {
+        "org.gradle.category": "library",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.jvm.version": 21,
+        "org.gradle.libraryelements": "jar",
+        "org.gradle.usage": "java-api"
+      },
+      "files": [
+        {
+          "name": "hudifine-api-1.0.1.jar",
+          "url": "hudifine-api-1.0.1.jar",
+          "size": 186012,
+          "sha512": "76cdae1d679bb2edba61e1a2edfc720978e1b7c9a67a227f4521ccce62b5f7151e473238d6094972477821c476fc465a9d3996a5d1fd7a0b1febc80a0af8f2da",
+          "sha256": "7c20ad4bafbdf3886877410e6a0fcd7b0f10869bc69edd54528beed48b81121f",
+          "sha1": "cc33397c158f73bf3fed4a8be0c40b4125e409c3",
+          "md5": "78c1e8c431264a0eed71753cc7511f65"
+        }
+      ]
+    },
+    {
+      "name": "runtimeElements",
+      "attributes": {
+        "org.gradle.category": "library",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.jvm.version": 21,
+        "org.gradle.libraryelements": "jar",
+        "org.gradle.usage": "java-runtime"
+      },
+      "dependencies": [
+        {
+          "group": "net.fabricmc",
+          "module": "fabric-loader",
+          "version": {
+            "requires": "0.18.6"
+          }
+        },
+        {
+          "group": "net.fabricmc.fabric-api",
+          "module": "fabric-api",
+          "version": {
+            "requires": "0.145.4+26.1.2"
+          }
+        }
+      ],
+      "files": [
+        {
+          "name": "hudifine-api-1.0.1.jar",
+          "url": "hudifine-api-1.0.1.jar",
+          "size": 186012,
+          "sha512": "76cdae1d679bb2edba61e1a2edfc720978e1b7c9a67a227f4521ccce62b5f7151e473238d6094972477821c476fc465a9d3996a5d1fd7a0b1febc80a0af8f2da",
+          "sha256": "7c20ad4bafbdf3886877410e6a0fcd7b0f10869bc69edd54528beed48b81121f",
+          "sha1": "cc33397c158f73bf3fed4a8be0c40b4125e409c3",
+          "md5": "78c1e8c431264a0eed71753cc7511f65"
+        }
+      ]
+    },
+    {
+      "name": "sourcesElements",
+      "attributes": {
+        "org.gradle.category": "documentation",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.docstype": "sources",
+        "org.gradle.usage": "java-runtime"
+      },
+      "files": [
+        {
+          "name": "hudifine-api-1.0.1-sources.jar",
+          "url": "hudifine-api-1.0.1-sources.jar",
+          "size": 59298,
+          "sha512": "0ba633781efa3da4d5a1087fd880b879d89933d5cdb355c31e08cf9cf945901ddaf0dad9f8812060da57bd027e4061a2c0bee8b474602a0d318ed36ad62f3a1f",
+          "sha256": "6996aa6057d3ac6d826f43b454b657bf4055d864521662401d3344ea5086ce3c",
+          "sha1": "255e3fd25f0264ec9c61e58593cecc4747946e64",
+          "md5": "0303b3adda72ec32e55e4284212147f6"
+        }
+      ]
+    }
+  ]
+}

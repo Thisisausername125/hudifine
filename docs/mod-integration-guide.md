@@ -14,8 +14,12 @@ Once registered, values are available in HUDScript through `get(...)`, exactly l
 When published as a standalone API artifact:
 
 ```groovy
+repositories {
+  maven { url = uri("https://cdn.jsdelivr.net/gh/Pacsy1/hudifine@main/public-maven/") }
+}
+
 dependencies {
-  modImplementation "com.hudifine:hudifine-api:2.0.0-beta"
+  modImplementation "dev.hudifine:hudifine-api:1.0.1"
 }
 ```
 
@@ -102,6 +106,7 @@ Hudifine discovers these entrypoints automatically during client initialization.
 Compatibility fallback:
 
 - If your mod registers only `hudifine:provider` and no `hudifine:hud` entrypoint, Hudifine auto-generates a basic HUD panel so users still see your values immediately.
+- Provider-only mods can override that panel styling by implementing `HudifineProviderMeta#getFallbackHudScript()` and returning a custom `widget { ... }` HUDScript.
 - Registering `hudifine:hud` gives full control over layout and styling and is recommended for production extensions.
 
 ## 4. Ship a HUD extension that auto-appears
@@ -205,6 +210,28 @@ public final class FpsProvider implements IntDataProvider, HudifineProviderMeta 
 
     @Override
     public String getUnit() { return "fps"; }
+
+    @Override
+    public String getFallbackHudScript() {
+        return """
+            widget {
+              anchor: top-right
+              offsetX: -10
+              offsetY: 10
+              background: #0f1a28cc
+              border: 1 #7cc8ff88
+              borderRadius: 12
+              padding: 6
+
+              text {
+                value: \"{get(mymod.fps)} FPS\"
+                color: #eaf6ff
+                fontSize: 12
+                shadow: true
+              }
+            }
+            """;
+    }
 }
 ```
 

@@ -1878,7 +1878,11 @@ public final class HudScriptManager {
                 continue;
             }
 
-            String script = buildProviderFallbackScript(modId, entry.getValue(), fallbackIndex);
+            String customScript = HudifineProviderRegistry.getFallbackHudScriptForMod(modId).trim();
+            String script = customScript;
+            if (script.isBlank()) {
+                script = buildProviderFallbackScript(modId, entry.getValue(), fallbackIndex);
+            }
             if (script.isBlank()) {
                 fallbackIndex++;
                 continue;
@@ -1892,7 +1896,26 @@ public final class HudScriptManager {
                 widgets.add(instance);
                 changed = true;
             } catch (Exception parseError) {
-                lastError = "Failed to build fallback HUD for provider mod '" + modId + "': " + parseError.getMessage();
+                if (customScript.isBlank()) {
+                    lastError = "Failed to build fallback HUD for provider mod '" + modId + "': " + parseError.getMessage();
+                } else {
+                    String generatedScript = buildProviderFallbackScript(modId, entry.getValue(), fallbackIndex);
+                    if (!generatedScript.isBlank()) {
+                        try {
+                            HudAst.HudScriptDocument document = new HudScriptParser(generatedScript).parse();
+                            HudWidgetInstance instance = new HudWidgetInstance(generatedScript, document);
+                            instance.extensionKey = extensionKey;
+                            applyDefaultSettings(instance);
+                            widgets.add(instance);
+                            changed = true;
+                            lastError = "Failed to parse custom fallback HUD script for provider mod '" + modId + "'; used auto-generated fallback.";
+                        } catch (Exception generatedParseError) {
+                            lastError = "Failed to parse both custom and auto-generated fallback HUDs for provider mod '" + modId + "': " + generatedParseError.getMessage();
+                        }
+                    } else {
+                        lastError = "Failed to parse custom fallback HUD script for provider mod '" + modId + "': " + parseError.getMessage();
+                    }
+                }
             }
 
             fallbackIndex++;

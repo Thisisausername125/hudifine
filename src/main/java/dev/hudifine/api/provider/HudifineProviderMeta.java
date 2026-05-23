@@ -15,4 +15,15 @@ public interface HudifineProviderMeta {
     default String getUnit() {
         return "";
     }
+
+    /**
+     * Optional HUDScript used when this mod only exposes {@code hudifine:provider}
+     * and does not register {@code hudifine:hud}.
+     *
+     * <p>Return a full {@code widget { ... }} script to control fallback widget
+     * styling and layout. Return blank to use Hudifine's auto-generated fallback.</p>
+     */
+    default String getFallbackHudScript() {
+        return "";
+    }
 }

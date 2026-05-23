@@ -32,6 +32,6 @@ repositories {
 }
 
 dependencies {
-    modImplementation "dev.hudifine:hudifine-api:1.0.0"
+    modImplementation "dev.hudifine:hudifine-api:1.0.1"
 }
 ```
