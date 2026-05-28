@@ -41,6 +41,7 @@ public final class HudScriptManager {
     private static final double MAX_MANUAL_SCALE = 6.0;
     private static final double MAX_SCREEN_AREA_RATIO = 0.30;
     private static final double SNAP_DISTANCE = 6.0;
+    private static final double SELECTION_BOX_ACTIVATION_DISTANCE = 4.0;
     private static final int CONTEXT_MENU_PADDING = 4;
     private static final int CONTEXT_MENU_ROW_HEIGHT = 16;
     private static final int CONTEXT_MENU_MIN_WIDTH = 122;
@@ -50,7 +51,7 @@ public final class HudScriptManager {
         meta {
           name: "Status HUD"
           author: "hudifine"
-                    version: "2.0.0-beta"
+                                        version: "2.0.0"
         }
 
         settings {
@@ -121,6 +122,7 @@ public final class HudScriptManager {
     private double resizeStartWidth;
     private double resizeStartHeight;
     private double resizeStartScale;
+    private boolean selectionBoxArmed;
     private boolean selectionBoxActive;
     private boolean selectionBoxAdditive;
     private double selectionBoxStartX;
@@ -200,19 +202,24 @@ public final class HudScriptManager {
         int height = client.getWindow().getGuiScaledHeight();
 
         List<RenderOrderEntry> sorted = new ArrayList<>(widgets.size());
+        boolean hasCustomZIndex = false;
         for (int i = 0; i < widgets.size(); i++) {
             HudWidgetInstance widget = widgets.get(i);
-            int zIndex = (int) HudExpressionEngine.asDouble(
-                HudExpressionEngine.eval(widget.document.widget.props.getOrDefault("zIndex", "0"), new ResolverAdapter(widget)),
-                0.0
-            );
+            int zIndex = 0;
+            String zIndexRaw = widget.document.widget.props.get("zIndex");
+            if (zIndexRaw != null && !zIndexRaw.isBlank()) {
+                hasCustomZIndex = true;
+                zIndex = evaluateWidgetZIndex(widget);
+            }
             sorted.add(new RenderOrderEntry(widget, zIndex, i));
         }
 
-        sorted.sort(
-            Comparator.comparingInt(RenderOrderEntry::zIndex)
-                .thenComparingInt(RenderOrderEntry::insertionIndex)
-        );
+        if (hasCustomZIndex) {
+            sorted.sort(
+                Comparator.comparingInt(RenderOrderEntry::zIndex)
+                    .thenComparingInt(RenderOrderEntry::insertionIndex)
+            );
+        }
 
         int mouseX = (int) Math.round(client.mouseHandler.getScaledXPos(client.getWindow()));
         int mouseY = (int) Math.round(client.mouseHandler.getScaledYPos(client.getWindow()));
@@ -267,7 +274,8 @@ public final class HudScriptManager {
             HudWidgetInstance hovered = getTopMostWidget(mouseX, mouseY);
             if (hovered == null) {
                 closeContextMenu();
-                return beginSelectionBox(mouseX, mouseY, shiftDown);
+                beginSelectionBox(mouseX, mouseY, shiftDown);
+                return false;
             }
 
             closeContextMenu();
@@ -320,6 +328,23 @@ public final class HudScriptManager {
     }
 
     public boolean handleMouseDragged(double mouseX, double mouseY) {
+        if (selectionBoxArmed) {
+            selectionBoxCurrentX = mouseX;
+            selectionBoxCurrentY = mouseY;
+
+            double dx = mouseX - selectionBoxStartX;
+            double dy = mouseY - selectionBoxStartY;
+            double activationDistanceSq = SELECTION_BOX_ACTIVATION_DISTANCE * SELECTION_BOX_ACTIVATION_DISTANCE;
+            if ((dx * dx) + (dy * dy) < activationDistanceSq) {
+                return false;
+            }
+
+            selectionBoxArmed = false;
+            selectionBoxActive = true;
+            updateSelectionFromSelectionBox();
+            return true;
+        }
+
         if (selectionBoxActive) {
             selectionBoxCurrentX = mouseX;
             selectionBoxCurrentY = mouseY;
@@ -375,6 +400,11 @@ public final class HudScriptManager {
 
     public boolean handleMouseReleased() {
         closeContextMenu();
+
+        if (selectionBoxArmed) {
+            clearSelectionBoxState();
+            return false;
+        }
 
         if (selectionBoxActive) {
             updateSelectionFromSelectionBox();
@@ -463,7 +493,7 @@ public final class HudScriptManager {
     }
 
     public boolean isDragging() {
-        return draggingWidget != null || resizingWidget != null || selectionBoxActive;
+        return draggingWidget != null || resizingWidget != null || selectionBoxArmed || selectionBoxActive;
     }
 
     public void closeTransientUi() {
@@ -481,7 +511,7 @@ public final class HudScriptManager {
         resizingCorner = null;
         resizeStates.clear();
 
-        selectionBoxActive = true;
+        selectionBoxArmed = true;
         selectionBoxAdditive = additive;
         selectionBoxStartX = mouseX;
         selectionBoxStartY = mouseY;
@@ -492,11 +522,11 @@ public final class HudScriptManager {
             selectionBoxBaseSelection.addAll(selectedWidgets);
         }
 
-        updateSelectionFromSelectionBox();
-        return true;
+        return false;
     }
 
     private void clearSelectionBoxState() {
+        selectionBoxArmed = false;
         selectionBoxActive = false;
         selectionBoxAdditive = false;
         selectionBoxBaseSelection.clear();
@@ -627,6 +657,19 @@ public final class HudScriptManager {
         int count = sources.size();
         setLastInfo(count == 1 ? "Pasted 1 element." : "Pasted " + count + " elements.");
         return true;
+    }
+
+    public void handleUnclaimedBackgroundClick() {
+        if (deleteConfirmOpen || selectedWidgets.isEmpty()) {
+            return;
+        }
+
+        clearSelection();
+    }
+
+    public void handleEscapeInChat() {
+        clearSelection();
+        closeTransientUi();
     }
 
     public void recordGlobalClick(int button) {
@@ -1782,6 +1825,23 @@ public final class HudScriptManager {
         return (dx * dx) + (dy * dy);
     }
 
+    private int evaluateWidgetZIndex(HudWidgetInstance widget) {
+        if (widget == null || widget.document == null || widget.document.widget == null) {
+            return 0;
+        }
+
+        String zIndexRaw = widget.document.widget.props.get("zIndex");
+        if (zIndexRaw == null || zIndexRaw.isBlank()) {
+            return 0;
+        }
+
+        return (int) Math.round(HudExpressionEngine.evalNumber(
+            zIndexRaw,
+            new ResolverAdapter(widget),
+            0.0
+        ));
+    }
+
     private HudWidgetInstance getTopMostWidget(double mouseX, double mouseY) {
         return getTopMostWidget(mouseX, mouseY, false);
     }
@@ -1795,11 +1855,7 @@ public final class HudScriptManager {
                 continue;
             }
 
-            int z = (int) Math.round(HudExpressionEngine.evalNumber(
-                widget.document.widget.props.getOrDefault("zIndex", "0"),
-                new ResolverAdapter(widget),
-                0.0
-            ));
+            int z = evaluateWidgetZIndex(widget);
             if (preferHidden && !widget.userVisible) {
                 z += 1_000_000;
             }

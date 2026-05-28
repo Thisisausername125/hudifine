@@ -91,7 +91,8 @@ public final class HudScriptParser {
     }
 
     private HudAst.WidgetNode parseElementBlock(String type) {
-        HudAst.WidgetNode element = new HudAst.WidgetNode(type);
+        String normalizedType = type == null ? "" : type.toLowerCase(Locale.ROOT);
+        HudAst.WidgetNode element = new HudAst.WidgetNode(normalizedType);
         expect(TokenType.LBRACE, "Expected '{' after " + type + ".");
 
         while (!check(TokenType.RBRACE) && !isAtEnd()) {
@@ -113,7 +114,7 @@ public final class HudScriptParser {
             }
 
             if (isElementStart()) {
-                String childType = advance().text;
+                String childType = advance().text.toLowerCase(Locale.ROOT);
                 element.children.add(parseElementBlock(childType));
                 continue;
             }

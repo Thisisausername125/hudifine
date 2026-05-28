@@ -4,6 +4,7 @@ import java.text.DecimalFormat;
 import java.text.DecimalFormatSymbols;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -24,6 +25,8 @@ public final class HudExpressionEngine {
             return size() > TEMPLATE_CACHE_SIZE;
         }
     });
+    private static final DecimalFormatSymbols ROOT_DECIMAL_SYMBOLS = DecimalFormatSymbols.getInstance(Locale.ROOT);
+    private static final ThreadLocal<Map<Integer, DecimalFormat>> DECIMAL_FORMAT_CACHE = ThreadLocal.withInitial(HashMap::new);
 
     private HudExpressionEngine() {
     }
@@ -338,6 +341,21 @@ public final class HudExpressionEngine {
         }
     }
 
+    private static String formatNumber(double value, int decimals) {
+        Map<Integer, DecimalFormat> cache = DECIMAL_FORMAT_CACHE.get();
+        DecimalFormat formatter = cache.computeIfAbsent(decimals, HudExpressionEngine::buildDecimalFormatter);
+        return formatter.format(value);
+    }
+
+    private static DecimalFormat buildDecimalFormatter(int decimals) {
+        StringBuilder pattern = new StringBuilder("0");
+        if (decimals > 0) {
+            pattern.append('.');
+            pattern.append("0".repeat(Math.max(0, decimals)));
+        }
+        return new DecimalFormat(pattern.toString(), ROOT_DECIMAL_SYMBOLS);
+    }
+
     private record IfThenElseSplit(String condition, String whenTrue, String whenFalse) {
     }
 
@@ -522,14 +540,7 @@ public final class HudExpressionEngine {
                 case "format" -> {
                     double value = asDouble(getArg(args, 0), 0.0);
                     int decimals = (int) Math.round(asDouble(getArg(args, 1), 2.0));
-                    DecimalFormatSymbols symbols = DecimalFormatSymbols.getInstance(Locale.ROOT);
-                    StringBuilder pattern = new StringBuilder("0");
-                    if (decimals > 0) {
-                        pattern.append('.');
-                        pattern.append("0".repeat(Math.max(0, decimals)));
-                    }
-                    DecimalFormat decimalFormat = new DecimalFormat(pattern.toString(), symbols);
-                    yield decimalFormat.format(value);
+                    yield formatNumber(value, decimals);
                 }
                 case "upper" -> String.valueOf(getArg(args, 0)).toUpperCase(Locale.ROOT);
                 case "lower" -> String.valueOf(getArg(args, 0)).toLowerCase(Locale.ROOT);

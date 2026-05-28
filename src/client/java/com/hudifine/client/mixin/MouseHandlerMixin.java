@@ -44,7 +44,8 @@ public abstract class MouseHandlerMixin {
             return;
         }
 
-        if (this.activeButton == null || this.activeButton.button() != 0) {
+        boolean leftPressed = this.isLeftPressed() || GLFW.glfwGetMouseButton(window, GLFW.GLFW_MOUSE_BUTTON_LEFT) == GLFW.GLFW_PRESS;
+        if (!leftPressed) {
             return;
         }
 
@@ -75,7 +76,7 @@ public abstract class MouseHandlerMixin {
             return;
         }
 
-        if (!this.isLeftPressed()) {
+        if (action == GLFW.GLFW_RELEASE) {
             HudifineClientMod.getManager().handleMouseReleased();
         }
     }

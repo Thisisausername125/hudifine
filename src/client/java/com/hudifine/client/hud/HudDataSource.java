@@ -6,8 +6,10 @@ import java.time.format.DateTimeFormatter;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Deque;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.inventory.InventoryScreen;
 import net.minecraft.client.multiplayer.ClientLevel;
@@ -33,6 +35,8 @@ public final class HudDataSource {
     private static final DateTimeFormatter CLOCK_FORMAT_24 = DateTimeFormatter.ofPattern("HH:mm");
     private static final DateTimeFormatter CLOCK_FORMAT_12 = DateTimeFormatter.ofPattern("h:mm a", Locale.ROOT);
     private static final DateTimeFormatter DATE_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd");
+    private static final String[] CARDINAL_DIRECTIONS = {"N", "NE", "E", "SE", "S", "SW", "W", "NW"};
+    private static final String EMPTY_POTION_MAP = "{}";
 
     private final Minecraft client;
     private final Deque<Integer> fpsWindow = new ArrayDeque<>();
@@ -59,11 +63,21 @@ public final class HudDataSource {
     private long lastFrameNs = 0L;
     private double lastFrameMs = 0.0;
 
+    private int cachedUsedSlots = -1;
+    private final Map<Item, Integer> cachedItemCounts = new HashMap<>();
+    private double cachedNearestPlayerDistance = Double.NaN;
+    private String cachedNearestPlayerName = "";
+    private List<String> cachedPotionEffectList;
+    private String cachedPotionAmplifierMap;
+    private String cachedPotionDurationMap;
+
     public HudDataSource(Minecraft client) {
         this.client = client;
     }
 
     public void tick() {
+        invalidateTickCaches();
+
         LocalPlayer player = client.player;
         if (player == null) {
             return;
@@ -103,6 +117,16 @@ public final class HudDataSource {
         mouseDeltaY = scaledMouseY - lastMouseY;
         lastMouseX = scaledMouseX;
         lastMouseY = scaledMouseY;
+    }
+
+    private void invalidateTickCaches() {
+        cachedUsedSlots = -1;
+        cachedItemCounts.clear();
+        cachedNearestPlayerDistance = Double.NaN;
+        cachedNearestPlayerName = "";
+        cachedPotionEffectList = null;
+        cachedPotionAmplifierMap = null;
+        cachedPotionDurationMap = null;
     }
 
     public void beginFrame() {
@@ -361,9 +385,8 @@ public final class HudDataSource {
 
     private String getCardinalDirection(float yaw) {
         double normalized = normalizeYaw(yaw);
-        String[] directions = {"N", "NE", "E", "SE", "S", "SW", "W", "NW"};
-        int index = (int) Math.round(normalized / 45.0) % 8;
-        return directions[index];
+        int index = (int) Math.round(normalized / 45.0) % CARDINAL_DIRECTIONS.length;
+        return CARDINAL_DIRECTIONS[index];
     }
 
     private double normalizeYaw(float yaw) {
@@ -507,6 +530,11 @@ public final class HudDataSource {
             return 0;
         }
 
+        Integer cached = cachedItemCounts.get(item);
+        if (cached != null) {
+            return cached;
+        }
+
         int count = 0;
         List<ItemStack> nonEquipment = client.player.getInventory().getNonEquipmentItems();
         for (ItemStack stack : nonEquipment) {
@@ -515,12 +543,17 @@ public final class HudDataSource {
             }
         }
 
+        cachedItemCounts.put(item, count);
         return count;
     }
 
     private int usedSlots() {
         if (client.player == null) {
             return 0;
+        }
+
+        if (cachedUsedSlots >= 0) {
+            return cachedUsedSlots;
         }
 
         int used = 0;
@@ -531,7 +564,8 @@ public final class HudDataSource {
             }
         }
 
-        return used;
+        cachedUsedSlots = used;
+        return cachedUsedSlots;
     }
 
     private boolean isHotbarPressed(int index) {
@@ -593,24 +627,24 @@ public final class HudDataSource {
     }
 
     private double nearestPlayerDistance() {
-        if (client.player == null || client.level == null) {
-            return -1.0;
-        }
-
-        double min = Double.MAX_VALUE;
-        for (AbstractClientPlayer other : client.level.players()) {
-            if (other == client.player) {
-                continue;
-            }
-            min = Math.min(min, client.player.distanceTo(other));
-        }
-
-        return min == Double.MAX_VALUE ? -1.0 : min;
+        ensureNearestPlayerCache();
+        return cachedNearestPlayerDistance;
     }
 
     private String nearestPlayerName() {
+        ensureNearestPlayerCache();
+        return cachedNearestPlayerName;
+    }
+
+    private void ensureNearestPlayerCache() {
+        if (!Double.isNaN(cachedNearestPlayerDistance)) {
+            return;
+        }
+
         if (client.player == null || client.level == null) {
-            return "";
+            cachedNearestPlayerDistance = -1.0;
+            cachedNearestPlayerName = "";
+            return;
         }
 
         double min = Double.MAX_VALUE;
@@ -628,7 +662,8 @@ public final class HudDataSource {
             }
         }
 
-        return name;
+        cachedNearestPlayerDistance = min == Double.MAX_VALUE ? -1.0 : min;
+        cachedNearestPlayerName = name;
     }
 
     private int getElytraDurability() {
@@ -645,56 +680,56 @@ public final class HudDataSource {
     }
 
     private List<String> getPotionEffectList() {
-        if (client.player == null) {
-            return List.of();
-        }
-
-        List<String> list = new ArrayList<>();
-        for (MobEffectInstance effect : client.player.getActiveEffects()) {
-            list.add(BuiltInRegistries.MOB_EFFECT.getKey(effect.getEffect().value()).toString());
-        }
-
-        return list;
+        ensurePotionCaches();
+        return cachedPotionEffectList;
     }
 
     private String getPotionAmplifierMap() {
-        if (client.player == null) {
-            return "{}";
-        }
-
-        StringBuilder builder = new StringBuilder("{");
-        boolean first = true;
-
-        for (MobEffectInstance effect : client.player.getActiveEffects()) {
-            if (!first) {
-                builder.append(", ");
-            }
-            builder.append(BuiltInRegistries.MOB_EFFECT.getKey(effect.getEffect().value())).append(":").append(effect.getAmplifier());
-            first = false;
-        }
-
-        builder.append("}");
-        return builder.toString();
+        ensurePotionCaches();
+        return cachedPotionAmplifierMap;
     }
 
     private String getPotionDurationMap() {
-        if (client.player == null) {
-            return "{}";
+        ensurePotionCaches();
+        return cachedPotionDurationMap;
+    }
+
+    private void ensurePotionCaches() {
+        if (cachedPotionEffectList != null && cachedPotionAmplifierMap != null && cachedPotionDurationMap != null) {
+            return;
         }
 
-        StringBuilder builder = new StringBuilder("{");
+        if (client.player == null) {
+            cachedPotionEffectList = List.of();
+            cachedPotionAmplifierMap = EMPTY_POTION_MAP;
+            cachedPotionDurationMap = EMPTY_POTION_MAP;
+            return;
+        }
+
+        List<String> list = new ArrayList<>();
+        StringBuilder amplifierBuilder = new StringBuilder("{");
+        StringBuilder durationBuilder = new StringBuilder("{");
         boolean first = true;
 
         for (MobEffectInstance effect : client.player.getActiveEffects()) {
+            String effectId = BuiltInRegistries.MOB_EFFECT.getKey(effect.getEffect().value()).toString();
+            list.add(effectId);
+
             if (!first) {
-                builder.append(", ");
+                amplifierBuilder.append(", ");
+                durationBuilder.append(", ");
             }
-            builder.append(BuiltInRegistries.MOB_EFFECT.getKey(effect.getEffect().value())).append(":").append(effect.getDuration());
+            amplifierBuilder.append(effectId).append(":").append(effect.getAmplifier());
+            durationBuilder.append(effectId).append(":").append(effect.getDuration());
             first = false;
         }
 
-        builder.append("}");
-        return builder.toString();
+        amplifierBuilder.append("}");
+        durationBuilder.append("}");
+
+        cachedPotionEffectList = List.copyOf(list);
+        cachedPotionAmplifierMap = amplifierBuilder.toString();
+        cachedPotionDurationMap = durationBuilder.toString();
     }
 
     private String getScoreboardObjective() {

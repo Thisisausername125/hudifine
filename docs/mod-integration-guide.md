@@ -30,7 +30,7 @@ In your `fabric.mod.json`, add a required dependency:
 ```json
 {
   "depends": {
-    "hudifine": ">=2.0.0-beta"
+    "hudifine": ">=2.0.0"
   }
 }
 ```

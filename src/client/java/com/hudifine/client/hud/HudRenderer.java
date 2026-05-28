@@ -6,6 +6,8 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
@@ -19,6 +21,8 @@ public final class HudRenderer {
     private static final double MAX_MANUAL_SCALE = 6.0;
     private static final double[] CURVE_AA_SAMPLE_OFFSETS = {1.0 / 6.0, 0.5, 5.0 / 6.0};
     private static final int CURVE_AA_SAMPLE_COUNT = CURVE_AA_SAMPLE_OFFSETS.length * CURVE_AA_SAMPLE_OFFSETS.length;
+    private static final Map<String, Integer> STATIC_COLOR_CACHE = new ConcurrentHashMap<>();
+    private static final Map<String, BorderStyle> STATIC_BORDER_CACHE = new ConcurrentHashMap<>();
 
     private final Minecraft client;
     private final HudDataSource dataSource;
@@ -206,7 +210,7 @@ public final class HudRenderer {
     }
 
     private void renderWidgetNode(HudAst.WidgetNode node, GuiGraphicsExtractor context, int x, int y, Resolver resolver, HudWidgetInstance widget, double parentOpacity) {
-        String type = node.type.toLowerCase(Locale.ROOT);
+        String type = node.type;
         if (isContainer(type)) {
             renderContainer(node, context, x, y, resolver, widget, parentOpacity);
             return;
@@ -217,6 +221,7 @@ public final class HudRenderer {
 
     private void renderContainer(HudAst.WidgetNode node, GuiGraphicsExtractor context, int x, int y, Resolver resolver, HudWidgetInstance widget, double parentOpacity) {
         String direction = value(node, "direction", "column", resolver).toLowerCase(Locale.ROOT);
+        boolean rowDirection = direction.equals("row");
         int padding = (int) Math.round(evalNumber(node.props.getOrDefault("padding", "0"), resolver, 0.0));
         int gap = (int) Math.round(evalNumber(node.props.getOrDefault("gap", "0"), resolver, 0.0));
 
@@ -228,7 +233,7 @@ public final class HudRenderer {
         for (HudAst.Node child : children) {
             Size size = measureNode(child, resolver, widget);
             childSizes.add(size);
-            if (direction.equals("row")) {
+            if (rowDirection) {
                 contentWidth += size.width;
                 contentHeight = Math.max(contentHeight, size.height);
             } else {
@@ -238,7 +243,7 @@ public final class HudRenderer {
         }
 
         if (!children.isEmpty()) {
-            if (direction.equals("row")) {
+            if (rowDirection) {
                 contentWidth += gap * (children.size() - 1);
             } else {
                 contentHeight += gap * (children.size() - 1);
@@ -256,8 +261,9 @@ public final class HudRenderer {
         }
 
         int backgroundColor = parseColor(node.props.getOrDefault("background", "transparent"), resolver, 0x00000000);
-        int borderColor = parseBorderColor(node.props.getOrDefault("border", ""), resolver);
-        int borderWidth = parseBorderWidth(node.props.getOrDefault("border", ""), resolver);
+        BorderStyle borderStyle = parseBorder(node.props.getOrDefault("border", ""), resolver);
+        int borderColor = borderStyle.color();
+        int borderWidth = borderStyle.width();
         int borderRadius = (int) Math.round(evalNumber(node.props.getOrDefault("borderRadius", "0"), resolver, 0.0));
         borderRadius = clampRadius(borderRadius, width, height);
 
@@ -290,7 +296,7 @@ public final class HudRenderer {
 
             renderNode(child, context, cursorX, cursorY, resolver, widget, parentOpacity);
 
-            if (direction.equals("row")) {
+            if (rowDirection) {
                 cursorX += size.width + gap;
             } else {
                 cursorY += size.height + gap;
@@ -299,7 +305,7 @@ public final class HudRenderer {
     }
 
     private void renderLeaf(HudAst.WidgetNode node, GuiGraphicsExtractor context, int x, int y, Resolver resolver, double parentOpacity) {
-        String type = node.type.toLowerCase(Locale.ROOT);
+        String type = node.type;
 
         switch (type) {
             case "text" -> renderText(node, context, x, y, resolver, parentOpacity);
@@ -498,7 +504,7 @@ public final class HudRenderer {
     }
 
     private Size measureWidgetNode(HudAst.WidgetNode node, Resolver resolver, HudWidgetInstance widget) {
-        String type = node.type.toLowerCase(Locale.ROOT);
+        String type = node.type;
         if (isContainer(type)) {
             String direction = value(node, "direction", "column", resolver).toLowerCase(Locale.ROOT);
             int padding = (int) Math.round(evalNumber(node.props.getOrDefault("padding", "0"), resolver, 0.0));
@@ -525,7 +531,7 @@ public final class HudRenderer {
     }
 
     private Size measureLeaf(HudAst.WidgetNode node, Resolver resolver) {
-        String type = node.type.toLowerCase(Locale.ROOT);
+        String type = node.type;
         return switch (type) {
             case "text" -> {
                 String value = HudExpressionEngine.evalTemplate(node.props.getOrDefault("value", ""), resolver);
@@ -584,10 +590,11 @@ public final class HudRenderer {
     private Size measureNodeList(List<HudAst.Node> nodes, Resolver resolver, HudWidgetInstance widget, String direction, int gap, int padding) {
         int width = 0;
         int height = 0;
+        boolean rowDirection = direction.equals("row");
 
         for (HudAst.Node child : nodes) {
             Size size = measureNode(child, resolver, widget);
-            if (direction.equals("row")) {
+            if (rowDirection) {
                 width += size.width;
                 height = Math.max(height, size.height);
             } else {
@@ -597,7 +604,7 @@ public final class HudRenderer {
         }
 
         if (!nodes.isEmpty()) {
-            if (direction.equals("row")) {
+            if (rowDirection) {
                 width += gap * (nodes.size() - 1);
             } else {
                 height += gap * (nodes.size() - 1);
@@ -627,10 +634,23 @@ public final class HudRenderer {
     }
 
     private List<HudAst.Node> sortByOrder(List<HudAst.Node> nodes, Resolver resolver) {
+        if (nodes.size() <= 1) {
+            return nodes;
+        }
+
         List<OrderEntry> entries = new ArrayList<>(nodes.size());
+        boolean hasCustomOrder = false;
         for (int i = 0; i < nodes.size(); i++) {
             HudAst.Node node = nodes.get(i);
-            entries.add(new OrderEntry(node, nodeOrder(node, resolver), i));
+            int order = nodeOrder(node, resolver);
+            if (order != 0) {
+                hasCustomOrder = true;
+            }
+            entries.add(new OrderEntry(node, order, i));
+        }
+
+        if (!hasCustomOrder) {
+            return nodes;
         }
 
         entries.sort(
@@ -650,7 +670,12 @@ public final class HudRenderer {
             return 0;
         }
 
-        return (int) Math.round(evalNumber(widgetNode.props.getOrDefault("order", "0"), resolver, 0.0));
+        String orderRaw = widgetNode.props.get("order");
+        if (orderRaw == null || orderRaw.isBlank()) {
+            return 0;
+        }
+
+        return (int) Math.round(evalNumber(orderRaw, resolver, 0.0));
     }
 
     private List<HudAst.Node> resolveConditionalChildren(HudAst.ConditionalNode conditionalNode, Resolver resolver, HudWidgetInstance widget) {
@@ -733,7 +758,32 @@ public final class HudRenderer {
     }
 
     private static int parseColor(String raw, Resolver resolver, int fallback) {
-        String value = HudExpressionEngine.evalTemplate(raw, resolver).trim();
+        String template = raw == null ? "" : raw;
+        if (isLiteralTemplate(template)) {
+            String literal = HudExpressionEngine.normalizeRawValue(template).trim();
+            Integer cached = STATIC_COLOR_CACHE.get(literal);
+            if (cached != null) {
+                return cached;
+            }
+
+            Integer parsed = tryParseColorLiteral(literal);
+            if (parsed != null) {
+                STATIC_COLOR_CACHE.put(literal, parsed);
+                return parsed;
+            }
+            return fallback;
+        }
+
+        String value = HudExpressionEngine.evalTemplate(template, resolver).trim();
+        Integer parsed = tryParseColorLiteral(value);
+        return parsed != null ? parsed : fallback;
+    }
+
+    private static boolean isLiteralTemplate(String raw) {
+        return raw.indexOf('{') < 0;
+    }
+
+    private static Integer tryParseColorLiteral(String value) {
         if (value.equalsIgnoreCase("transparent")) {
             return 0x00000000;
         }
@@ -749,7 +799,7 @@ public final class HudRenderer {
                 try {
                     return (int) (0xFF000000L | Long.parseLong(hex, 16));
                 } catch (NumberFormatException ignored) {
-                    return fallback;
+                    return null;
                 }
             }
             if (hex.length() == 8) {
@@ -761,40 +811,79 @@ public final class HudRenderer {
                     int a = (int) (rgba & 0xFF);
                     return (a << 24) | (r << 16) | (g << 8) | b;
                 } catch (NumberFormatException ignored) {
-                    return fallback;
+                    return null;
                 }
             }
         }
 
-        return fallback;
+        return null;
     }
 
-    private static int parseBorderWidth(String borderRaw, Resolver resolver) {
-        String border = HudExpressionEngine.evalTemplate(borderRaw, resolver).trim();
+    private static BorderStyle parseBorder(String borderRaw, Resolver resolver) {
+        String template = borderRaw == null ? "" : borderRaw;
+        if (isLiteralTemplate(template)) {
+            String literal = HudExpressionEngine.normalizeRawValue(template).trim();
+            BorderStyle cached = STATIC_BORDER_CACHE.get(literal);
+            if (cached != null) {
+                return cached;
+            }
+
+            BorderStyle parsed = parseBorderLiteral(literal);
+            STATIC_BORDER_CACHE.put(literal, parsed);
+            return parsed;
+        }
+
+        return parseBorderLiteral(HudExpressionEngine.evalTemplate(template, resolver).trim());
+    }
+
+    private static BorderStyle parseBorderLiteral(String border) {
         if (border.isEmpty()) {
-            return 0;
+            return BorderStyle.NONE;
         }
-        String[] parts = border.split("\\s+");
-        if (parts.length == 0) {
-            return 0;
-        }
+
+        int firstBreak = findWhitespaceIndex(border, 0);
+        String widthToken = firstBreak < 0 ? border : border.substring(0, firstBreak);
+        int width;
         try {
-            return Math.max(0, Integer.parseInt(parts[0]));
+            width = Math.max(0, Integer.parseInt(widthToken));
         } catch (NumberFormatException ignored) {
-            return 0;
+            return BorderStyle.NONE;
         }
+
+        if (width <= 0) {
+            return BorderStyle.NONE;
+        }
+
+        if (firstBreak < 0) {
+            return new BorderStyle(width, 0);
+        }
+
+        int colorStart = skipWhitespace(border, firstBreak);
+        if (colorStart >= border.length()) {
+            return new BorderStyle(width, 0);
+        }
+
+        int colorEnd = findWhitespaceIndex(border, colorStart);
+        String colorToken = colorEnd < 0 ? border.substring(colorStart) : border.substring(colorStart, colorEnd);
+        Integer parsedColor = tryParseColorLiteral(colorToken);
+        return new BorderStyle(width, parsedColor != null ? parsedColor : 0xFFFFFFFF);
     }
 
-    private static int parseBorderColor(String borderRaw, Resolver resolver) {
-        String border = HudExpressionEngine.evalTemplate(borderRaw, resolver).trim();
-        if (border.isEmpty()) {
-            return 0;
+    private static int findWhitespaceIndex(String value, int start) {
+        for (int i = Math.max(0, start); i < value.length(); i++) {
+            if (Character.isWhitespace(value.charAt(i))) {
+                return i;
+            }
         }
-        String[] parts = border.split("\\s+");
-        if (parts.length < 2) {
-            return 0;
+        return -1;
+    }
+
+    private static int skipWhitespace(String value, int index) {
+        int cursor = Math.max(0, index);
+        while (cursor < value.length() && Character.isWhitespace(value.charAt(cursor))) {
+            cursor++;
         }
-        return parseColor(parts[1], resolver, 0xFFFFFFFF);
+        return cursor;
     }
 
     private static int clampRadius(int radius, int width, int height) {
@@ -1116,6 +1205,10 @@ public final class HudRenderer {
     }
 
     private record OrderEntry(HudAst.Node node, int order, int index) {
+    }
+
+    private record BorderStyle(int width, int color) {
+        private static final BorderStyle NONE = new BorderStyle(0, 0);
     }
 
     private record Size(int width, int height) {

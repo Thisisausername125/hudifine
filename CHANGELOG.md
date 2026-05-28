@@ -1,6 +1,6 @@
 # Changelog
 
-## 2.0.0-beta
+## 2.0.0
 
 ### Added
 - HUD selection clipboard shortcuts in editor mode.
@@ -20,9 +20,9 @@
 ### Changed
 - Removed multi-select floating TRASH and HIDE/SHOW overlay buttons.
 - Consolidated multi-select destructive/visibility actions into the context menu.
-- Version bumped to 2.0.0-beta.
-- Default generated script metadata version bumped to 2.0.0-beta.
-- Integration guide dependency examples updated to 2.0.0-beta.
+- Version bumped to 2.0.0.
+- Default generated script metadata version bumped to 2.0.0.
+- Integration guide dependency examples updated to 2.0.0.
 
 ### Fixed
 - Fixed delete confirmation lifecycle issues where confirm UI could close unexpectedly during pointer release flow.
@@ -32,6 +32,13 @@
 - Fixed extension visibility issue where provider-only extension mods loaded data but produced no visible HUDs.
 - Fixed provider-only integration limitation where custom widget styling could not be supplied through metadata-driven fallback scripts.
 - Fixed rounded-rectangle translucency artifact where center region appeared darker from overlapping alpha fills.
+
+### Latest 5 Bug Fixes (Summary)
+- Fixed chat click interception by selection-box arming: unhandled clicks pass through, and marquee selection activates only after drag threshold.
+- Fixed stale selection state in chat: unclaimed background clicks now clear HUD selection.
+- Fixed Esc behavior in chat: pressing Esc now clears HUD selection and transient HUD UI state.
+- Fixed marquee drag activation regression by using real left-button pressed state for drag updates.
+- Fixed premature selection/drag release cleanup by handling only explicit left-button release and hardening button-state checks.
 
 ### Rendering
 - Improved rounded corner smoothing with boundary multisample anti-aliasing.
@@ -43,6 +50,13 @@
 - Added template compilation caching for repeated string template evaluation.
 - Reduced per-frame zIndex sort overhead by precomputing render-order entries once per frame.
 - Improved rounded-corner rasterization strategy for better performance-to-quality balance.
+
+### Latest Optimizations (Summary)
+- Added literal style caches for renderer color and border parsing to avoid repeated per-frame parsing/allocation.
+- Reduced container child-order overhead by skipping order sorts when no non-default `order` values are present.
+- Added cached `DecimalFormat` instances for expression `format(...)` to remove repeated formatter construction.
+- Added tick-scoped data-source caches for inventory counts, nearest-player scans, potion lists/maps, and cardinal direction lookup reuse.
+- Reduced zIndex overhead by skipping zIndex expression evaluation and z-sort when widgets do not define custom zIndex values.
 
 ### UX
 - Context menu rows now correctly gray out disabled actions with matching icon and text styling.

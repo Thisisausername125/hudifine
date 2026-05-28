@@ -110,9 +110,31 @@ public abstract class ChatScreenMixin extends Screen {
         }
     }
 
+    @Inject(method = "mouseClicked", at = @At("RETURN"))
+    private void hudifine$clearSelectionAfterUnclaimedClick(MouseButtonEvent click, boolean doubled, CallbackInfoReturnable<Boolean> cir) {
+        if (HudifineClientMod.getManager() == null) {
+            return;
+        }
+
+        if (click.button() != 0 && click.button() != 1) {
+            return;
+        }
+
+        if (cir.getReturnValue()) {
+            return;
+        }
+
+        HudifineClientMod.getManager().handleUnclaimedBackgroundClick();
+    }
+
     @Inject(method = "keyPressed", at = @At("HEAD"), cancellable = true)
     private void hudifine$keyPressed(KeyEvent event, CallbackInfoReturnable<Boolean> cir) {
         if (HudifineClientMod.getManager() == null) {
+            return;
+        }
+
+        if (event.key() == GLFW.GLFW_KEY_ESCAPE) {
+            HudifineClientMod.getManager().handleEscapeInChat();
             return;
         }
 
